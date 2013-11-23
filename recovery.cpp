@@ -137,6 +137,7 @@ char* locale = NULL;
 static const int MAX_ARG_LENGTH = 4096;
 static const int MAX_ARGS = 100;
 
+static char reversion[100]="Android sdk reversion:";
 // open a given path, mounting partitions as necessary
 FILE*
 fopen_path(const char *path, const char *mode) {
@@ -448,7 +449,7 @@ static const char**
 prepend_title(const char* const* headers) {
     const char* title[] = { "Android system recovery <"
                             EXPAND(RECOVERY_API_VERSION) "e>",
-                            "",
+                            reversion,
                             NULL };
 
     // count the number of lines in our title, plus the
@@ -651,6 +652,31 @@ update_directory(const char* path, const char* unmount_when_done,
     return result;
 }
 
+static int 
+copy_databk_to_data(){
+	printf("begin copy databk to data\n");
+    char *argv_execv[] = {"data_resume.sh", NULL};
+	ensure_path_mounted("/data");
+	ensure_path_mounted("/system");
+    pid_t pid =fork();
+	if(pid==0){
+		execv("/system/bin/data_resume.sh",argv_execv);
+		_exit(-1);
+	}
+	int status;
+    waitpid(pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        printf("Error (Status %d),fail to resume data\n", WEXITSTATUS(status));
+		ensure_path_unmounted("/data");
+	    ensure_path_unmounted("/system");
+        return -1;
+    }
+    printf("copy databk to data succeed\n");
+	ensure_path_unmounted("/data");
+	ensure_path_unmounted("/system"); 
+    return 0;		 
+}
+
 static void
 wipe_data(int confirm, Device* device) {
     if (confirm) {
@@ -687,6 +713,7 @@ wipe_data(int confirm, Device* device) {
     device->WipeData();
     erase_volume("/data");
     erase_volume("/cache");
+	copy_databk_to_data();
     ui->Print("Data wipe complete.\n");
 }
 
@@ -727,6 +754,7 @@ prompt_and_wait(Device* device, int status) {
                 break;
 
             case Device::WIPE_CACHE:
+                ui->ShowText(false);
                 ui->Print("\n-- Wiping cache...\n");
                 erase_volume("/cache");
                 ui->Print("Cache wipe complete.\n");
@@ -845,6 +873,9 @@ ui_print(const char* format, ...) {
 int
 main(int argc, char **argv) {
     time_t start = time(NULL);
+	char firmware[50];
+	property_get("ro.reversion.aw_sdk_tag", firmware, "unknow");
+	strcat(reversion,firmware);
 
     // If these fail, there's not really anywhere to complain...
     freopen(TEMPORARY_LOG_FILE, "a", stdout); setbuf(stdout, NULL);
@@ -969,6 +1000,7 @@ main(int argc, char **argv) {
         if (device->WipeData()) status = INSTALL_ERROR;
         if (erase_volume("/data")) status = INSTALL_ERROR;
         if (wipe_cache && erase_volume("/cache")) status = INSTALL_ERROR;
+		copy_databk_to_data();
         if (status != INSTALL_SUCCESS) ui->Print("Data wipe failed.\n");
     } else if (wipe_cache) {
         if (wipe_cache && erase_volume("/cache")) status = INSTALL_ERROR;
@@ -982,6 +1014,7 @@ main(int argc, char **argv) {
         ui->SetBackground(RecoveryUI::ERROR);
     }
     if (status != INSTALL_SUCCESS || ui->IsTextVisible()) {
+   	   if( !ui->IsTextVisible()) ui->ShowText(true);
         prompt_and_wait(device, status);
     }
 

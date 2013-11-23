@@ -12,6 +12,7 @@
 #include <stdint.h>     // for uintptr_t
 #include <stdlib.h>
 #include <sys/stat.h>   // for S_ISLNK()
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 #define LOG_TAG "minzip"
@@ -79,6 +80,10 @@ enum {
 
     STORED = 0,
     DEFLATED = 8,
+
+	NONE = 0,
+	BOOT0 = 1,
+	BOOT1 = 2,
 
     CENVEM_UNIX = 3 << 8,   // the high byte of CENVEM
 };
@@ -553,13 +558,57 @@ static bool processStoredEntry(const ZipArchive *pArchive,
     return true;
 }
 
+/* add by fe
+ * This will write boot0 and boot1
+*/
+#define BLKBURNBOOT0 		_IO('v',127)
+#define BLKBURNBOOT1 		_IO('v',128)
+static bool processWriteBoot(unsigned char *data, int dataLen,
+                                 void *cookie,int isBoot){                             
+   int fd = (int)cookie;
+   BufferExtractCookie bec;
+   bec.buffer = data;
+   bec.len = dataLen;
+   int ret;
+
+   switch(isBoot){
+      case BOOT0:
+	  	ret = ioctl(fd,BLKBURNBOOT0,(unsigned long)&bec);
+	  	break;
+	  case BOOT1:
+	  	ret = ioctl(fd,BLKBURNBOOT1,(unsigned long)&bec);
+	  	break;
+	  case NONE:
+	  	break;
+   }
+   if(ret)
+   	  return false;
+    else
+     return true;
+}
 static bool processDeflatedEntry(const ZipArchive *pArchive,
     const ZipEntry *pEntry, ProcessZipEntryContentsFunction processFunction,
     void *cookie)
 {
     long result = -1;
-    unsigned char readBuf[32 * 1024];
-    unsigned char procBuf[32 * 1024];
+	long arrayLen = 32 * 1024;
+	int isBoot = NONE;
+	/*add by fe
+     *--we will write boot0 and boot1--
+     *--Extend array size,just want read and write boot0 or boot1 as once--
+	*/
+	if(strstr(pEntry->fileName,"boot0_nand")){
+         isBoot = BOOT0;
+		 arrayLen = 640 * 1024;
+	} else if (strstr(pEntry->fileName,"boot1_nand"))
+	{
+		 isBoot = BOOT1;
+		 arrayLen = 640 * 1024;
+	}
+    unsigned char readBuf[arrayLen];
+    unsigned char procBuf[arrayLen];
+	// end add 
+	
     z_stream zstream;
     int zerr;
     long compRemaining;
@@ -630,7 +679,14 @@ static bool processDeflatedEntry(const ZipArchive *pArchive,
         {
             long procSize = zstream.next_out - procBuf;
             LOGVV("+++ processing %d bytes\n", (int) procSize);
-            bool ret = processFunction(procBuf, procSize, cookie);
+			bool ret;
+			if(isBoot){
+				ret = processWriteBoot(procBuf,procSize,cookie,isBoot);
+				
+			}else{
+			  ret = processFunction(procBuf, procSize, cookie);
+			}
+            
             if (!ret) {
                 LOGW("Process function elected to fail (in inflate)\n");
                 goto z_bail;

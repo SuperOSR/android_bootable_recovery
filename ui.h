@@ -111,6 +111,12 @@ private:
     clock_t key_down_time;             // under key_queue_mutex
     int rel_sum;
 
+    struct TouchEvent{
+          int x;
+		  int y;
+		  int point_id;
+	}mTouchEvent[5],lastEvent,firstEvent;
+	int event_count,move_pile;
     pthread_t input_t;
 
     static void* input_thread(void* cookie);
