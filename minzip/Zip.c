@@ -558,6 +558,10 @@ static bool processStoredEntry(const ZipArchive *pArchive,
     return true;
 }
 
+typedef struct {
+    unsigned char* buffer;
+    long len;
+} BufferExtractCookie;
 /* add by fe
  * This will write boot0 and boot1
 */
@@ -653,7 +657,7 @@ static bool processDeflatedEntry(const ZipArchive *pArchive,
                         (long)sizeof(readBuf) : compRemaining;
             LOGVV("+++ reading %ld bytes (%ld left)\n",
                 getSize, compRemaining);
-
+			
             int cc = read(pArchive->fd, readBuf, getSize);
             if (cc != (int) getSize) {
                 LOGW("inflate read failed (%d vs %ld)\n", cc, getSize);
@@ -737,7 +741,6 @@ bool mzProcessZipEntryContents(const ZipArchive *pArchive,
 
     /* Seek to the beginning of the entry's compressed data. */
     lseek(pArchive->fd, pEntry->offset, SEEK_SET);
-
     switch (pEntry->compression) {
     case STORED:
         ret = processStoredEntry(pArchive, pEntry, processFunction, cookie);
@@ -865,12 +868,6 @@ bool mzExtractZipEntryToFile(const ZipArchive *pArchive,
     }
     return true;
 }
-
-typedef struct {
-    unsigned char* buffer;
-    long len;
-} BufferExtractCookie;
-
 static bool bufferProcessFunction(const unsigned char *data, int dataLen,
     void *cookie) {
     BufferExtractCookie *bec = (BufferExtractCookie*)cookie;
@@ -1041,7 +1038,6 @@ bool mzExtractRecursive(const ZipArchive *pArchive,
     unsigned int i;
     bool seenMatch = false;
     int ok = true;
-    int extractCount = 0;
     for (i = 0; i < pArchive->numEntries; i++) {
         ZipEntry *pEntry = pArchive->pEntries + i;
         if (pEntry->fileNameLen < zipDirLen) {
@@ -1172,19 +1168,23 @@ bool mzExtractRecursive(const ZipArchive *pArchive,
                  * Open the target for writing.
                  */
 
+#ifdef HAVE_SELINUX
                 char *secontext = NULL;
 
                 if (sehnd) {
                     selabel_lookup(sehnd, &secontext, targetFile, UNZIP_FILEMODE);
                     setfscreatecon(secontext);
                 }
+#endif
 
                 int fd = creat(targetFile, UNZIP_FILEMODE);
 
+#ifdef HAVE_SELINUX
                 if (secontext) {
                     freecon(secontext);
                     setfscreatecon(NULL);
                 }
+#endif
 
                 if (fd < 0) {
                     LOGE("Can't create target file \"%s\": %s\n",
@@ -1207,15 +1207,12 @@ bool mzExtractRecursive(const ZipArchive *pArchive,
                     break;
                 }
 
-                LOGV("Extracted file \"%s\"\n", targetFile);
-                ++extractCount;
+                LOGD("Extracted file \"%s\"\n", targetFile);
             }
         }
 
         if (callback != NULL) callback(targetFile, cookie);
     }
-
-    LOGD("Extracted %d file(s)\n", extractCount);
 
     free(helper.buf);
     free(zpath);
