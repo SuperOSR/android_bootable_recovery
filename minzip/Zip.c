@@ -558,6 +558,10 @@ static bool processStoredEntry(const ZipArchive *pArchive,
     return true;
 }
 
+typedef struct {
+    unsigned char* buffer;
+    long len;
+} BufferExtractCookie;
 /* add by fe
  * This will write boot0 and boot1
 */
@@ -865,12 +869,6 @@ bool mzExtractZipEntryToFile(const ZipArchive *pArchive,
     }
     return true;
 }
-
-typedef struct {
-    unsigned char* buffer;
-    long len;
-} BufferExtractCookie;
-
 static bool bufferProcessFunction(const unsigned char *data, int dataLen,
     void *cookie) {
     BufferExtractCookie *bec = (BufferExtractCookie*)cookie;

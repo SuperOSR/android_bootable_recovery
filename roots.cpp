@@ -35,8 +35,8 @@ extern struct selabel_handle *sehandle;
 
 int is_data_media(const char* path) {
     int i;
-    for (i = 0; i < num_volumes; i++) {
-        Volume* vol = device_volumes + i;
+    for (i = 0; i < fstab->num_entries; i++) {
+        Volume* vol = &fstab->recs[i];
         if (strcmp(vol->mount_point,path)==0&&strcmp(vol->fs_type, "datamedia") == 0)
             return 1;
     }
