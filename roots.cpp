@@ -29,8 +29,6 @@
 #include "common.h"
 #include "make_ext4fs.h"
 
-static int num_volumes = 0;
-static Volume* device_volumes = NULL;
 static struct fstab *fstab = NULL;
 
 extern struct selabel_handle *sehandle;

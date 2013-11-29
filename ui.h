@@ -94,13 +94,9 @@ class RecoveryUI {
     // the range [0..numitems).
     virtual int SelectMenu(int sel) = 0;
 
-	virtual int* GetScreenPara() = 0;
-
     // End menu mode, resetting the text overlay so that ui_print()
     // statements will be displayed.
     virtual void EndMenu() = 0;
-
-	static int  menu_select;
 
 protected:
     void EnqueueKey(int key_code);
@@ -125,7 +121,6 @@ private:
 
     static void* input_thread(void* cookie);
     static int input_callback(int fd, short revents, void* data);
-	int touch_handle_input(input_event ev);
     void process_key(int key_code, int updown);
     bool usb_connected();
 };

@@ -37,8 +37,6 @@
 #include "ui.h"
 
 #define UI_WAIT_KEY_TIMEOUT_SEC    120
-#define MENU_SELECT_ADJUST 10
-#define ROTATION BOARD_RECOVERY_ROTATION
 
 // There's only (at most) one of these objects, and global callbacks
 // (for pthread_create, and the input event system) need to find it,
