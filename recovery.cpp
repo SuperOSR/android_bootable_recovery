@@ -874,7 +874,7 @@ ui_print(const char* format, ...) {
 int
 main(int argc, char **argv) {
     time_t start = time(NULL);
-	char firmware[50];
+	char firmware[PROPERTY_VALUE_MAX];
 	property_get("ro.reversion.aw_sdk_tag", firmware, "unknow");
 	strcat(reversion,firmware);
 
