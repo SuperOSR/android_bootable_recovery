@@ -17,10 +17,6 @@
 #ifndef RECOVERY_SCREEN_UI_H
 #define RECOVERY_SCREEN_UI_H
 
-#define MENU_MAX_COLS 64
-#define MENU_MAX_ROWS 250
-
-
 #include <pthread.h>
 
 #include "ui.h"
@@ -56,7 +52,15 @@ class ScreenRecoveryUI : public RecoveryUI {
                            int initial_selection);
     int SelectMenu(int sel);
     void EndMenu();
-    int* GetScreenPara();
+
+    void Redraw();
+
+    enum UIElement { HEADER, MENU, MENU_SEL_BG, MENU_SEL_FG, LOG, TEXT_FILL };
+    virtual void SetColor(UIElement e);
+
+  protected:
+    int install_overlay_offset_x, install_overlay_offset_y;
+
   private:
     Icon currentIcon;
     int installingFrame;
@@ -80,7 +84,7 @@ class ScreenRecoveryUI : public RecoveryUI {
     bool pagesIdentical;
 
     static const int kMaxCols = 96;
-    static const int kMaxRows = 32;
+    static const int kMaxRows = 96;
 
     // Log text overlay, displayed when a magic key is pressed
     char text[kMaxRows][kMaxCols];
@@ -89,22 +93,20 @@ class ScreenRecoveryUI : public RecoveryUI {
     bool show_text;
     bool show_text_ever;   // has show_text ever been true?
 
-    char menu[MENU_MAX_ROWS][MENU_MAX_COLS];
+    char menu[kMaxRows][kMaxCols];
     bool show_menu;
-    int menu_top, menu_items, menu_sel,menu_show_start;
+    int menu_top, menu_items, menu_sel;
 
     pthread_t progress_t;
 
     int animation_fps;
     int indeterminate_frames;
     int installing_frames;
-    int install_overlay_offset_x, install_overlay_offset_y;
     int overlay_offset_x, overlay_offset_y;
 
     void draw_install_overlay_locked(int frame);
     void draw_background_locked(Icon icon);
     void draw_progress_locked();
-    void draw_text_line(int row, const char* t);
     void draw_screen_locked();
     void update_screen_locked();
     void update_progress_locked();

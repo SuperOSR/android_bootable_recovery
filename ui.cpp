@@ -37,8 +37,6 @@
 #include "ui.h"
 
 #define UI_WAIT_KEY_TIMEOUT_SEC    120
-#define MENU_SELECT_ADJUST 10
-#define ROTATION BOARD_RECOVERY_ROTATION
 
 // There's only (at most) one of these objects, and global callbacks
 // (for pthread_create, and the input event system) need to find it,
@@ -48,9 +46,8 @@ static RecoveryUI* self = NULL;
 RecoveryUI::RecoveryUI() :
     key_queue_len(0),
     key_last_down(-1),
-    move_pile(0),
-    event_count(0),
-    key_down_time(0) {
+    key_long_press(false),
+    key_down_count(0) {
     pthread_mutex_init(&key_queue_mutex, NULL);
     pthread_cond_init(&key_queue_cond, NULL);
     self = this;
@@ -70,12 +67,6 @@ int RecoveryUI::input_callback(int fd, short revents, void* data)
     ret = ev_get_input(fd, revents, &ev);
     if (ret)
         return -1;
-	
-#ifdef BOARD_TOUCH_RECOVERY
-       // self->Print("ev.type=%d,ev.code=%d,ev.value=%d \n",ev.type,ev.code,ev.value);
-	if(self->touch_handle_input(ev))
-		return 0;
-#endif
 
     if (ev.type == EV_SYN) {
         return 0;
@@ -122,19 +113,22 @@ void RecoveryUI::process_key(int key_code, int updown) {
     bool register_key = false;
     bool long_press = false;
 
-    const long long_threshold = CLOCKS_PER_SEC * 750 / 1000;
-
     pthread_mutex_lock(&key_queue_mutex);
     key_pressed[key_code] = updown;
     if (updown) {
+        ++key_down_count;
         key_last_down = key_code;
-        key_down_time = clock();
+        key_long_press = false;
+        pthread_t th;
+        key_timer_t* info = new key_timer_t;
+        info->ui = this;
+        info->key_code = key_code;
+        info->count = key_down_count;
+        pthread_create(&th, NULL, &RecoveryUI::time_key_helper, info);
+        pthread_detach(th);
     } else {
         if (key_last_down == key_code) {
-            long duration = clock() - key_down_time;
-            if (duration > long_threshold) {
-                long_press = true;
-            }
+            long_press = key_long_press;
             register_key = true;
         }
         key_last_down = -1;
@@ -160,6 +154,24 @@ void RecoveryUI::process_key(int key_code, int updown) {
             break;
         }
     }
+}
+
+void* RecoveryUI::time_key_helper(void* cookie) {
+    key_timer_t* info = (key_timer_t*) cookie;
+    info->ui->time_key(info->key_code, info->count);
+    delete info;
+    return NULL;
+}
+
+void RecoveryUI::time_key(int key_code, int count) {
+    usleep(750000);  // 750 ms == "long"
+    bool long_press = false;
+    pthread_mutex_lock(&key_queue_mutex);
+    if (key_last_down == key_code && key_down_count == count) {
+        long_press = key_long_press = true;
+    }
+    pthread_mutex_unlock(&key_queue_mutex);
+    if (long_press) KeyLongPress(key_code);
 }
 
 void RecoveryUI::EnqueueKey(int key_code) {
@@ -253,96 +265,5 @@ RecoveryUI::KeyAction RecoveryUI::CheckKey(int key) {
 void RecoveryUI::NextCheckKeyIsLong(bool is_long_press) {
 }
 
-int RecoveryUI::menu_select(-1);
-
-int RecoveryUI::touch_handle_input(input_event ev){ 
-	int touch_code = 0;
-	int rotation = ROTATION;
-	if(ev.type==EV_ABS){
-        switch(ev.code){
-           case ABS_MT_TRACKING_ID:
-		      lastEvent.point_id = ev.value;
-			  event_count++;
-		   	  break;
-		   case ABS_MT_TOUCH_MAJOR:
-		   	  if(ev.value==0){			  				
-			  }
-		   	  break;
-		   case ABS_MT_WIDTH_MAJOR:
-		      break;
-		   case ABS_MT_POSITION_X:
-		      if(180 == rotation)
-			    lastEvent.x = gr_fb_width() - ev.value;
-		      else
-			    lastEvent.x = ev.value;
-			  event_count++;
-		      break;
-		   case ABS_MT_POSITION_Y:	
-		      if(180 == rotation)
-			    lastEvent.y = gr_fb_height() - ev.value;
-		      else
-			    lastEvent.y = ev.value;
-			  event_count++;
-			  break;
-
-		   default :
-				break;
-		}
-       return 1;
-		
-	}else if(ev.type == EV_SYN){
-	  //the down events have been catch,now,deal with its
-        if(event_count==3){
-             if(firstEvent.y==0)
-			 	firstEvent.y = lastEvent.y;
-			 if((lastEvent.y-mTouchEvent[lastEvent.point_id].y)*move_pile<0){
-                move_pile = 0;
-			    key_queue_len = 0;
-			 }else if(lastEvent.y!=0){
-			    move_pile +=lastEvent.y-mTouchEvent[lastEvent.point_id].y;
-			 }
-			 if(mTouchEvent[lastEvent.point_id].y == 0){
-			  	mTouchEvent[lastEvent.point_id].y = lastEvent.y;
-			 }else if((lastEvent.y-mTouchEvent[lastEvent.point_id].y)>20){
-				touch_code = Device::kHighlightDown;
-				mTouchEvent[lastEvent.point_id].y = lastEvent.y;
-			 }else if((lastEvent.y-mTouchEvent[lastEvent.point_id].y)<-20){
-				touch_code = Device::kHighlightUp;
-				mTouchEvent[lastEvent.point_id].y = lastEvent.y;
-			 }
-		}else{
-
-		}
-		if(event_count==0&&lastEvent.y!=0){//the point move up
-			if((firstEvent.y==lastEvent.y)){
-					int *sreenPara=self->GetScreenPara();
-					int select = (lastEvent.y-MENU_SELECT_ADJUST)/sreenPara[2]-sreenPara[0];
-					if(select>=0&&select<sreenPara[1]){
-						menu_select = select;
-						touch_code = Device::kInvokeItem;
-					}
-				}else{
-				}
-				lastEvent.x=lastEvent.y=lastEvent.point_id=0;
-				firstEvent.x=firstEvent.y=firstEvent.point_id=0;
-				for(int i=0;i<5;i++){
-                   mTouchEvent[i].x= mTouchEvent[i].y= mTouchEvent[i].point_id=0;
-				}
-
-		}
-		if(ev.code==0&&ev.value==0){
-            event_count = 0;
-		}
-		pthread_mutex_lock(&key_queue_mutex);
-		const int queue_max = sizeof(key_queue) / sizeof(key_queue[0]);
-        if (key_queue_len < queue_max&&touch_code!=0) {
-            key_queue[key_queue_len++] = touch_code;
-			pthread_cond_signal(&key_queue_cond);      
-        }
-		pthread_mutex_unlock(&key_queue_mutex);
-	  
-	  return 0;
-	}
-	return 0;
-
+void RecoveryUI::KeyLongPress(int key) {
 }

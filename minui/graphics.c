@@ -30,11 +30,7 @@
 
 #include <pixelflinger/pixelflinger.h>
 
-#ifdef BOARD_USE_CUSTOM_RECOVERY_FONT
-#include BOARD_USE_CUSTOM_RECOVERY_FONT
-#else
 #include "font_10x18.h"
-#endif
 #include "minui.h"
 
 #if defined(RECOVERY_BGRA)
@@ -49,7 +45,6 @@
 #endif
 
 #define NUM_BUFFERS 2
-#define ROTATION BOARD_RECOVERY_ROTATION
 
 typedef struct {
     GGLSurface* texture;
@@ -189,43 +184,19 @@ static void set_active_framebuffer(unsigned n)
     }
 }
 
-void* rotate_180(void *_dst,const void *_src,int len)
-{
-    int pixelSize = PIXEL_SIZE,size,step = len/pixelSize;
-    unsigned char *dst = _dst;
-    const unsigned char *src = _src + len;
-
-    while(step-- > 0){
-       size = pixelSize;
-       src -=size;
-       while(size-- > 0){
-           *dst++ = *src++;
-        }
-        src -=pixelSize;
-    }
-    return _dst;
-}
-
 void gr_flip(void)
 {
     GGLContext *gl = gr_context;
-	int rotation = ROTATION;
+
     /* swap front and back buffers */
     if (double_buffering)
         gr_active_fb = (gr_active_fb + 1) & 1;
 
     /* copy data from the in-memory surface to the buffer we're about
      * to make active. */
-    if(180 == rotation)
-    {
-	    rotate_180(gr_framebuffer[gr_active_fb].data, gr_mem_surface.data,
-	           fi.line_length * vi.yres);
-    }
-    else
-    {
-	    memcpy(gr_framebuffer[gr_active_fb].data, gr_mem_surface.data,
-	            fi.line_length * vi.yres);
-    }
+    memcpy(gr_framebuffer[gr_active_fb].data, gr_mem_surface.data,
+           fi.line_length * vi.yres);
+
     /* inform the display driver */
     set_active_framebuffer(gr_active_fb);
 }
@@ -414,8 +385,8 @@ int gr_init(void)
 
     get_memory_surface(&gr_mem_surface);
 
-    fprintf(stderr, "framebuffer: fd %d (%d x %d)\n",
-            gr_fb_fd, gr_framebuffer[0].width, gr_framebuffer[0].height);
+    printf("framebuffer: fd %d (%d x %d)\n",
+           gr_fb_fd, gr_framebuffer[0].width, gr_framebuffer[0].height);
 
         /* start with 0 as front (displayed) and 1 as back (drawing) */
     gr_active_fb = 0;

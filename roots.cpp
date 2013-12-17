@@ -33,16 +33,6 @@ static struct fstab *fstab = NULL;
 
 extern struct selabel_handle *sehandle;
 
-int is_data_media(const char* path) {
-    int i;
-    for (i = 0; i < fstab->num_entries; i++) {
-        Volume* vol = &fstab->recs[i];
-        if (strcmp(vol->mount_point,path)==0&&strcmp(vol->fs_type, "datamedia") == 0)
-            return 1;
-    }
-    return 0;
-}
-
 void load_volume_table()
 {
     int i;
@@ -84,12 +74,6 @@ int ensure_path_mounted(const char* path) {
     }
     if (strcmp(v->fs_type, "ramdisk") == 0) {
         // the ramdisk is always mounted.
-        return 0;
-    }
-    if(is_data_media(v->mount_point)){
-        ensure_path_mounted("/data");
-        rmdir(v->mount_point);
-        symlink("/data/media", v->mount_point);
         return 0;
     }
 
@@ -143,11 +127,6 @@ int ensure_path_unmounted(const char* path) {
     if (strcmp(v->fs_type, "ramdisk") == 0) {
         // the ramdisk is always mounted; you can't unmount it.
         return -1;
-    }
-
-    if(is_data_media(v->mount_point)){
-        ensure_path_unmounted("/data");
-        return 0;
     }
 
     int result;
@@ -222,4 +201,23 @@ int format_volume(const char* volume) {
 
     LOGE("format_volume: fs_type \"%s\" unsupported\n", v->fs_type);
     return -1;
+}
+
+int setup_install_mounts() {
+    if (fstab == NULL) {
+        LOGE("can't set up install mounts: no fstab loaded\n");
+        return -1;
+    }
+    for (int i = 0; i < fstab->num_entries; ++i) {
+        Volume* v = fstab->recs + i;
+
+        if (strcmp(v->mount_point, "/tmp") == 0 ||
+            strcmp(v->mount_point, "/cache") == 0) {
+            if (ensure_path_mounted(v->mount_point) != 0) return -1;
+
+        } else {
+            if (ensure_path_unmounted(v->mount_point) != 0) return -1;
+        }
+    }
+    return 0;
 }

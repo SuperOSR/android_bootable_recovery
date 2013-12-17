@@ -80,7 +80,16 @@ class RecoveryUI {
     enum KeyAction { ENQUEUE, TOGGLE, REBOOT, IGNORE };
     virtual KeyAction CheckKey(int key);
 
+    // Called immediately before each call to CheckKey(), tell you if
+    // the key was long-pressed.
     virtual void NextCheckKeyIsLong(bool is_long_press);
+
+    // Called when a key is held down long enough to have been a
+    // long-press (but before the key is released).  This means that
+    // if the key is eventually registered (released without any other
+    // keys being pressed in the meantime), NextCheckKeyIsLong() will
+    // be called with "true".
+    virtual void KeyLongPress(int key);
 
     // --- menu display ---
 
@@ -94,13 +103,9 @@ class RecoveryUI {
     // the range [0..numitems).
     virtual int SelectMenu(int sel) = 0;
 
-	virtual int* GetScreenPara() = 0;
-
     // End menu mode, resetting the text overlay so that ui_print()
     // statements will be displayed.
     virtual void EndMenu() = 0;
-
-	static int  menu_select;
 
 protected:
     void EnqueueKey(int key_code);
@@ -112,22 +117,25 @@ private:
     int key_queue[256], key_queue_len;
     char key_pressed[KEY_MAX + 1];     // under key_queue_mutex
     int key_last_down;                 // under key_queue_mutex
-    clock_t key_down_time;             // under key_queue_mutex
+    bool key_long_press;               // under key_queue_mutex
+    int key_down_count;                // under key_queue_mutex
     int rel_sum;
 
-    struct TouchEvent{
-          int x;
-		  int y;
-		  int point_id;
-	}mTouchEvent[5],lastEvent,firstEvent;
-	int event_count,move_pile;
+    typedef struct {
+        RecoveryUI* ui;
+        int key_code;
+        int count;
+    } key_timer_t;
+
     pthread_t input_t;
 
     static void* input_thread(void* cookie);
     static int input_callback(int fd, short revents, void* data);
-	int touch_handle_input(input_event ev);
     void process_key(int key_code, int updown);
     bool usb_connected();
+
+    static void* time_key_helper(void* cookie);
+    void time_key(int key_code, int count);
 };
 
 #endif  // RECOVERY_UI_H
