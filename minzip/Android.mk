@@ -14,6 +14,10 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_STATIC_LIBRARIES := libselinux
 
+ifeq ($(TARGET_BOARD_PLATFORM), fiber)
+    LOCAL_CFLAGS += -DTARGET_BOARD_FIBER
+endif
+
 LOCAL_MODULE := libminzip
 
 LOCAL_CFLAGS += -Wall
