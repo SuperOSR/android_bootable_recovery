@@ -107,6 +107,11 @@ class RecoveryUI {
     // statements will be displayed.
     virtual void EndMenu() = 0;
 
+#ifdef BOARD_TOUCH_RECOVERY
+	static int  menu_select;
+	virtual int* GetScreenPara() = 0;
+#endif
+
 protected:
     void EnqueueKey(int key_code);
 
@@ -127,6 +132,15 @@ private:
         int count;
     } key_timer_t;
 
+#ifdef BOARD_TOUCH_RECOVERY
+    struct TouchEvent{
+          int x;
+		  int y;
+		  int point_id;
+	}mTouchEvent[5],lastEvent,firstEvent;
+	int event_count,move_pile;
+	int touch_handle_input(input_event ev);
+#endif
     pthread_t input_t;
 
     static void* input_thread(void* cookie);
@@ -136,6 +150,7 @@ private:
 
     static void* time_key_helper(void* cookie);
     void time_key(int key_code, int count);
+
 };
 
 #endif  // RECOVERY_UI_H

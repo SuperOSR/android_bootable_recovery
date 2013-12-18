@@ -76,6 +76,10 @@ else
   LOCAL_STATIC_LIBRARIES += $(TARGET_RECOVERY_UI_LIB)
 endif
 
+ifeq ($(SW_BOARD_TOUCH_RECOVERY),true)
+  LOCAL_CPPFLAGS += -DBOARD_TOUCH_RECOVERY
+endif
+
 LOCAL_C_INCLUDES += system/extras/ext4_utils
 
 include $(BUILD_EXECUTABLE)
