@@ -26,6 +26,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifdef TARGET_BOARD_FIBER
+#include <sys/wait.h>
+#endif
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -728,6 +731,32 @@ update_directory(const char* path, const char* unmount_when_done,
     return result;
 }
 
+#ifdef TARGET_BOARD_FIBER
+static int copy_databk_to_data(){
+	printf("begin copy databk to data\n");
+    char *argv_execv[] = {"data_resume.sh", NULL};
+	ensure_path_mounted("/data");
+	ensure_path_mounted("/system");
+    pid_t pid =fork();
+	if(pid==0){
+		execv("/system/bin/data_resume.sh",argv_execv);
+		_exit(-1);
+	}
+	int status;
+    waitpid(pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        printf("Error (Status %d),fail to resume data\n", WEXITSTATUS(status));
+		ensure_path_unmounted("/data");
+	    ensure_path_unmounted("/system");
+        return -1;
+    }
+    printf("copy databk to data succeed\n");
+	ensure_path_unmounted("/data");
+	ensure_path_unmounted("/system"); 
+    return 0;		 
+}
+#endif
+
 static void
 wipe_data(int confirm, Device* device) {
     if (confirm) {
@@ -764,6 +793,9 @@ wipe_data(int confirm, Device* device) {
     device->WipeData();
     erase_volume("/data");
     erase_volume("/cache");
+#ifdef TARGET_BOARD_FIBER
+	copy_databk_to_data();
+#endif
     ui->Print("Data wipe complete.\n");
 }
 
@@ -1042,6 +1074,9 @@ main(int argc, char **argv) {
         if (device->WipeData()) status = INSTALL_ERROR;
         if (erase_volume("/data")) status = INSTALL_ERROR;
         if (wipe_cache && erase_volume("/cache")) status = INSTALL_ERROR;
+#ifdef TARGET_BOARD_FIBER
+		copy_databk_to_data();
+#endif
         if (status != INSTALL_SUCCESS) ui->Print("Data wipe failed.\n");
     } else if (wipe_cache) {
         if (wipe_cache && erase_volume("/cache")) status = INSTALL_ERROR;

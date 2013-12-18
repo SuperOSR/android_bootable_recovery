@@ -33,6 +33,18 @@ static struct fstab *fstab = NULL;
 
 extern struct selabel_handle *sehandle;
 
+#ifdef TARGET_BOARD_FIBER
+int is_data_media(const char* path) {
+    int i;
+    for (i = 0; i < fstab->num_entries; i++) {
+        Volume* vol = &fstab->recs[i];
+        if (strcmp(vol->mount_point,path)==0&&strcmp(vol->fs_type, "datamedia") == 0)
+            return 1;
+    }
+    return 0;
+}
+#endif
+
 void load_volume_table()
 {
     int i;
@@ -76,6 +88,14 @@ int ensure_path_mounted(const char* path) {
         // the ramdisk is always mounted.
         return 0;
     }
+#ifdef TARGET_BOARD_FIBER
+    if(is_data_media(v->mount_point)){
+        ensure_path_mounted("/data");
+        rmdir(v->mount_point);
+        symlink("/data/media", v->mount_point);
+        return 0;
+    }
+#endif
 
     int result;
     result = scan_mounted_volumes();
@@ -128,6 +148,13 @@ int ensure_path_unmounted(const char* path) {
         // the ramdisk is always mounted; you can't unmount it.
         return -1;
     }
+
+#ifdef TARGET_BOARD_FIBER
+    if(is_data_media(v->mount_point)){
+        ensure_path_unmounted("/data");
+        return 0;
+    }
+#endif
 
     int result;
     result = scan_mounted_volumes();

@@ -27,6 +27,10 @@ LOCAL_SRC_FILES := \
     verifier.cpp \
     adb_install.cpp
 
+ifeq ($(TARGET_BOARD_PLATFORM), fiber)
+    LOCAL_CFLAGS += -DTARGET_BOARD_FIBER
+endif
+
 LOCAL_MODULE := recovery
 
 LOCAL_FORCE_STATIC_EXECUTABLE := true
@@ -75,25 +79,6 @@ endif
 LOCAL_C_INCLUDES += system/extras/ext4_utils
 
 include $(BUILD_EXECUTABLE)
-
-
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := verifier_test
-LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_MODULE_TAGS := tests
-LOCAL_SRC_FILES := \
-    verifier_test.cpp \
-    verifier.cpp \
-    ui.cpp
-LOCAL_STATIC_LIBRARIES := \
-    libmincrypt \
-    libminui \
-    libcutils \
-    libstdc++ \
-    libc
-include $(BUILD_EXECUTABLE)
-
 
 include $(LOCAL_PATH)/minui/Android.mk \
     $(LOCAL_PATH)/minelf/Android.mk \
