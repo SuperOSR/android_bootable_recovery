@@ -67,6 +67,11 @@ int RecoveryUI::input_callback(int fd, short revents, void* data)
     ret = ev_get_input(fd, revents, &ev);
     if (ret)
         return -1;
+	
+#ifdef BOARD_TOUCH_RECOVERY
+	if(self->touch_handle_input(ev))
+		return 0;
+#endif
 
     if (ev.type == EV_SYN) {
         return 0;
@@ -267,3 +272,97 @@ void RecoveryUI::NextCheckKeyIsLong(bool is_long_press) {
 
 void RecoveryUI::KeyLongPress(int key) {
 }
+
+#ifdef BOARD_TOUCH_RECOVERY
+int RecoveryUI::touch_handle_input(input_event ev){ 
+	int touch_code = 0;
+	int rotation = ROTATION;
+	if(ev.type==EV_ABS){
+        switch(ev.code){
+           case ABS_MT_TRACKING_ID:
+		      lastEvent.point_id = ev.value;
+			  event_count++;
+		   	  break;
+		   case ABS_MT_TOUCH_MAJOR:
+		   	  if(ev.value==0){			  				
+			  }
+		   	  break;
+		   case ABS_MT_WIDTH_MAJOR:
+		      break;
+		   case ABS_MT_POSITION_X:
+		      if(180 == rotation)
+			    lastEvent.x = gr_fb_width() - ev.value;
+		      else
+			    lastEvent.x = ev.value;
+			  event_count++;
+		      break;
+		   case ABS_MT_POSITION_Y:	
+		      if(180 == rotation)
+			    lastEvent.y = gr_fb_height() - ev.value;
+		      else
+			    lastEvent.y = ev.value;
+			  event_count++;
+			  break;
+
+		   default :
+				break;
+		}
+       return 1;
+		
+	}else if(ev.type == EV_SYN){
+	  //the down events have been catch,now,deal with its
+        if(event_count==3){
+             if(firstEvent.y==0)
+			 	firstEvent.y = lastEvent.y;
+			 if((lastEvent.y-mTouchEvent[lastEvent.point_id].y)*move_pile<0){
+                move_pile = 0;
+			    key_queue_len = 0;
+			 }else if(lastEvent.y!=0){
+			    move_pile +=lastEvent.y-mTouchEvent[lastEvent.point_id].y;
+			 }
+			 if(mTouchEvent[lastEvent.point_id].y == 0){
+			  	mTouchEvent[lastEvent.point_id].y = lastEvent.y;
+			 }else if((lastEvent.y-mTouchEvent[lastEvent.point_id].y)>20){
+				touch_code = Device::kHighlightDown;
+				mTouchEvent[lastEvent.point_id].y = lastEvent.y;
+			 }else if((lastEvent.y-mTouchEvent[lastEvent.point_id].y)<-20){
+				touch_code = Device::kHighlightUp;
+				mTouchEvent[lastEvent.point_id].y = lastEvent.y;
+			 }
+		}else{
+
+		}
+		if(event_count==0&&lastEvent.y!=0){//the point move up
+			if((firstEvent.y==lastEvent.y)){
+					int *sreenPara=self->GetScreenPara();
+					int select = (lastEvent.y-MENU_SELECT_ADJUST)/sreenPara[2]-sreenPara[0];
+					if(select>=0&&select<sreenPara[1]){
+						menu_select = select;
+						touch_code = Device::kInvokeItem;
+					}
+				}else{
+				}
+				lastEvent.x=lastEvent.y=lastEvent.point_id=0;
+				firstEvent.x=firstEvent.y=firstEvent.point_id=0;
+				for(int i=0;i<5;i++){
+                   mTouchEvent[i].x= mTouchEvent[i].y= mTouchEvent[i].point_id=0;
+				}
+
+		}
+		if(ev.code==0&&ev.value==0){
+            event_count = 0;
+		}
+		pthread_mutex_lock(&key_queue_mutex);
+		const int queue_max = sizeof(key_queue) / sizeof(key_queue[0]);
+        if (key_queue_len < queue_max&&touch_code!=0) {
+            key_queue[key_queue_len++] = touch_code;
+			pthread_cond_signal(&key_queue_cond);      
+        }
+		pthread_mutex_unlock(&key_queue_mutex);
+	  
+	  return 0;
+	}
+	return 0;
+
+}
+#endif
