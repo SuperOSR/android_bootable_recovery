@@ -191,28 +191,9 @@ really_install_package(const char *path, int* wipe_cache)
     }
 
     ui->Print("Opening update package...\n");
-
-    int numKeys;
-    Certificate* loadedKeys = load_keys(PUBLIC_KEYS_FILE, &numKeys);
-    if (loadedKeys == NULL) {
-        LOGE("Failed to load keys\n");
-        return INSTALL_CORRUPT;
-    }
-    LOGI("%d key(s) loaded from %s\n", numKeys, PUBLIC_KEYS_FILE);
-
-    ui->Print("Verifying update package...\n");
-
-    int err;
-    err = verify_file(path, loadedKeys, numKeys);
-    free(loadedKeys);
-    LOGI("verify_file returned %d\n", err);
-    if (err != VERIFY_SUCCESS) {
-        LOGE("signature verification failed\n");
-        return INSTALL_CORRUPT;
-    }
-
     /* Try to open the package.
      */
+    int err;
     ZipArchive zip;
     err = mzOpenZipArchive(path, &zip);
     if (err != 0) {
